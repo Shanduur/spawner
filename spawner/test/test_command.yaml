@@ -1,0 +1,21 @@
+components:
+  - entrypoint: [ echo ]
+    cmd: [ ok ]
+    workdir: test.tmp
+    tee:
+      stdout: true
+      stderr: true
+      combined: true
+    before:
+      - entrypoint: [ npm, i ]
+        workdir: test.tmp/reveal.js
+        before:
+          - entrypoint: [ ln ]
+            cmd: [ -s, -f, test/index.html, test.tmp/reveal.js/index.html ]
+            before:
+              - entrypoint: [ git ]
+                cmd: [ clone, https://github.com/hakimel/reveal.js.git ]
+                workdir: test.tmp
+    after:
+      - entrypoint: [ rm ]
+        cmd: [ -rf, test.tmp ]

@@ -1,0 +1,24 @@
+spawndir: .spawndir
+
+components:
+  - entrypoint: [ npm ]
+    cmd: [ start ]
+    workdir: reveal.js.tmp
+    tee:
+      combined: true
+    before:
+      - entrypoint: [ npm, i ]
+        workdir: reveal.js.tmp
+        before:
+          - entrypoint: [ ln ]
+            cmd: [ -s, -f, "{{.WorkDir}}/index.html", reveal.js.tmp/index.html ]
+            before:
+              - entrypoint: [ git ]
+                cmd: [ clone, https://github.com/hakimel/reveal.js.git, reveal.js.tmp ]
+    after:
+      - entrypoint: [ rm ]
+        cmd: [ -rf, reveal.js ]
+  - entrypoint: [ ttyd, -c, user:passw0rd, -p, 2375, -m, 1 ]
+    cmd: [ zsh ]
+    tee:
+      combined: true
