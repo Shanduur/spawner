@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
+
+	l "github.com/Shanduur/spawner/logger"
 )
 
 type Component struct {
@@ -22,13 +23,13 @@ type Component struct {
 	After      []Component `yaml:"after"`
 	Before     []Component `yaml:"before"`
 	Tee        Tee         `yaml:"tee"`
+	ExecCmd    *exec.Cmd
 
 	populated bool
 	prefix    string
 
-	Stdout io.Writer
-	Stderr io.Writer
-	Stdin  io.Reader
+	Stdout io.ReadCloser
+	Stderr io.ReadCloser
 }
 
 func (cmd Component) String() string {
@@ -36,7 +37,7 @@ func (cmd Component) String() string {
 	cmdArray = append(cmdArray, cmd.Entrypoint...)
 	cmdArray = append(cmdArray, cmd.Cmd...)
 
-	return strings.Join(cmdArray, " ")
+	return cmdArray[0]
 }
 
 func (cmd *Component) AddPrefix(prefix string) error {
@@ -58,6 +59,22 @@ func (cmd *Component) AddPrefix(prefix string) error {
 	return nil
 }
 
+func (cmd *Component) Kill() {
+	for i := 0; i < len(cmd.Before); i++ {
+		cmd.Before[i].Kill()
+	}
+
+	if cmd.ExecCmd.Process != nil {
+		if err := cmd.ExecCmd.Process.Kill(); err != nil {
+			l.Log().Warn(err)
+		}
+	}
+
+	for i := 0; i < len(cmd.After); i++ {
+		cmd.After[i].Kill()
+	}
+}
+
 func (cmd *Component) Populate() error {
 	for i := 0; i < len(cmd.Before); i++ {
 		if err := cmd.Before[i].Populate(); err != nil {
@@ -74,7 +91,6 @@ func (cmd *Component) Populate() error {
 	cmd.populated = true
 
 	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 
 	wd, err := filepath.Abs(cmd.WorkDir)
@@ -84,6 +100,7 @@ func (cmd *Component) Populate() error {
 	if len(wd) > len(cmd.WorkDir) {
 		cmd.WorkDir = wd
 	}
+	// l.Log().Info(cmd.WorkDir)
 
 	if err = os.MkdirAll(cmd.WorkDir, 0777); err != nil {
 		return err
@@ -95,6 +112,38 @@ func (cmd *Component) Populate() error {
 	)); err != nil {
 		return err
 	}
+
+	var componentArray []string
+	componentArray = append(componentArray, cmd.Entrypoint...)
+	componentArray = append(componentArray, cmd.Cmd...)
+
+	if len(componentArray) <= 0 {
+		return fmt.Errorf("neither entrypoint nor component provided")
+	}
+
+	componentArray, err = cmd.ArrayExpand(componentArray)
+	if err != nil {
+		return fmt.Errorf("unable to expand array: %w", err)
+	}
+
+	name := componentArray[0]
+	var args []string
+	if len(componentArray) > 1 {
+		args = append(args, componentArray[1:]...)
+	}
+
+	cmd.ExecCmd = exec.Command(name, args...)
+	cmd.Stdout, err = cmd.ExecCmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("unable to create stdout pipe for %s", cmd.String())
+	}
+
+	cmd.Stderr, err = cmd.ExecCmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("unable to create stderr pipe for %s", cmd.String())
+	}
+
+	cmd.ExecCmd.Dir = cmd.WorkDir
 
 	return nil
 }
@@ -154,78 +203,34 @@ func (cmd *Component) Exec(ctx context.Context) error {
 		}
 	}
 
-	if len(cmd.WorkDir) > 0 {
-		err = os.MkdirAll(cmd.WorkDir, 0777)
-		if err != nil {
-			return fmt.Errorf("problem with WorkDir: %w", err)
-		}
-	}
-
-	var componentArray []string
-	componentArray = append(componentArray, cmd.Entrypoint...)
-	componentArray = append(componentArray, cmd.Cmd...)
-
-	if len(componentArray) <= 0 {
-		return fmt.Errorf("neither entrypoint nor component provided")
-	}
-
-	componentArray, err = cmd.ArrayExpand(componentArray)
-	if err != nil {
-		return fmt.Errorf("unable to expand array: %w", err)
-	}
-
-	name := componentArray[0]
-	var args []string
-	if len(componentArray) > 1 {
-		args = append(args, componentArray[1:]...)
-	}
-
-	ex := exec.Command(name, args...)
-	stdout, err := ex.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("unable to create stdout pipe for %s", cmd.String())
-	}
-
 	go func() {
 		var w io.Writer
 		if cmd.Tee.Combined || cmd.Tee.Stdout {
-			w = io.MultiWriter(cmd.Tee.StdoutFile, os.Stdout)
-		} else {
-			w = os.Stdout
-		}
-
-		_, err := io.Copy(w, stdout)
-		if err != nil {
-			log.Printf("stdout error %s: %s", cmd.String(), err.Error())
+			w = io.MultiWriter(cmd.Tee.StdoutFile)
+			_, err := io.Copy(w, cmd.Stdout)
+			if err != nil {
+				l.Log().Printf("stdout error %s: %s", cmd.String(), err.Error())
+			}
 		}
 	}()
-
-	stderr, err := ex.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("unable to create stderr pipe for %s", cmd.String())
-	}
 
 	go func() {
 		var w io.Writer
 		if cmd.Tee.Combined || cmd.Tee.Stderr {
-			w = io.MultiWriter(cmd.Tee.StderrFile, os.Stderr)
-		} else {
-			w = os.Stdout
-		}
-		_, err := io.Copy(w, stderr)
-		if err != nil {
-			log.Printf("stderr error %s: %s", cmd.String(), err.Error())
+			w = io.MultiWriter(cmd.Tee.StderrFile)
+			_, err := io.Copy(w, cmd.Stderr)
+			if err != nil {
+				l.Log().Printf("stderr error %s: %s", cmd.String(), err.Error())
+			}
 		}
 	}()
 
-	ex.Dir = cmd.WorkDir
-
-	err = ex.Start()
+	err = cmd.ExecCmd.Start()
 	if err != nil {
 		return NewErrExecutionError(cmd.String(), err)
 	}
 
-	err = ex.Wait()
+	err = cmd.ExecCmd.Wait()
 	if err != nil {
 		return NewErrExecutionError(cmd.String(), err)
 	}

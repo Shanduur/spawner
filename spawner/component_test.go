@@ -2,7 +2,6 @@ package spawner_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/Shanduur/spawner/spawner"
@@ -29,17 +28,7 @@ func TestPopulate(t *testing.T) {
 		t.Errorf("unable to parse: %s", err.Error())
 	}
 
-	for _, cmd := range spr.Components {
-		if cmd.Stderr != os.Stderr {
-			t.Errorf("cmd.Stderr and os.Stderr not equal for %s, got: %v, wanted: %v", cmd.String(), cmd.Stderr, os.Stderr)
-		}
-
-		if cmd.Stdout != os.Stdout {
-			t.Errorf("cmd.Stdout and os.Stdout not equal for %s, got: %v, wanted: %v", cmd.String(), cmd.Stderr, os.Stderr)
-		}
-
-		if cmd.Stdin != os.Stdin {
-			t.Errorf("cmd.Stdin and os.Stdin not equal for %s, got: %v, wanted: %v", cmd.String(), cmd.Stderr, os.Stderr)
-		}
+	if err := spr.Populate(); err != nil {
+		t.Errorf("unable to parse: %s", err.Error())
 	}
 }

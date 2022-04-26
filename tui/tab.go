@@ -1,9 +1,10 @@
 package tui
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"sync"
-	"time"
 
 	"github.com/gizak/termui/v3/widgets"
 )
@@ -14,11 +15,13 @@ type Tab struct {
 	AutoScroll   bool
 	Mut          sync.RWMutex
 	HistoryLimit int
+	Scanner      *bufio.Scanner
 }
 
 type TabOpts struct {
 	Title        string
 	HistoryLimit int
+	Scanner      *bufio.Scanner
 }
 
 func (tab *Tab) LengthEnforcer() {
@@ -36,20 +39,29 @@ func (tab *Tab) LengthEnforcer() {
 	}
 }
 
-func (tab *Tab) Writer() {
-	for {
-		time.Sleep(time.Second)
+func (tab *Tab) Resize(w, h int) {
+	tab.Content.SetRect(0, 4, w-1, h-4)
+}
 
+func (tab *Tab) Writer() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("recovered writer", r)
+		}
+	}()
+
+	tab.Content.Rows = append(tab.Content.Rows, "loaded")
+
+	for tab.Scanner.Scan() {
 		tab.Mut.Lock()
-		tab.Content.Rows = append(tab.Content.Rows, fmt.Sprintf("hello"))
+		tab.Content.Rows = append(tab.Content.Rows, tab.Scanner.Text())
 		tab.Mut.Unlock()
 
 		if tab.AutoScroll {
 			tab.Content.SelectedRow = len(tab.Content.Rows) - 1
 		}
 	}
-}
-
-func (tab *Tab) Resize(w, h int) {
-	tab.Content.SetRect(0, 4, w-1, h-4)
+	if err := tab.Scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, "reading standard input:", err)
+	}
 }

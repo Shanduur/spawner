@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"bufio"
 	"fmt"
 	"time"
 
+	l "github.com/Shanduur/spawner/logger"
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
 	"golang.org/x/term"
@@ -64,7 +66,8 @@ func Init(opts TuiOpts) (*Tui, error) {
 	}
 
 	if err := t.AddTab(TabOpts{
-		Title: "main",
+		Title:   "main",
+		Scanner: bufio.NewScanner(l.Buffer),
 	}); err != nil {
 		return nil, fmt.Errorf("unable to add main tab: %w", err)
 	}
@@ -132,6 +135,7 @@ func (tui *Tui) AddTab(opts TabOpts) error {
 		HistoryLimit: opts.HistoryLimit,
 		Content:      lst,
 		AutoScroll:   true,
+		Scanner:      opts.Scanner,
 	})
 
 	tui.TabPane.TabNames = append(tui.TabPane.TabNames, opts.Title)
@@ -181,7 +185,6 @@ func (tui *Tui) Start() error {
 				tui.renderTab()
 				ui.Render(tui.Keymap)
 			} else {
-				ui.Clear()
 				ui.Render(tui.Error)
 			}
 		}

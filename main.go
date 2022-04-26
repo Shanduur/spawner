@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
-	"log"
 	"os"
 	"sync"
 
+	l "github.com/Shanduur/spawner/logger"
 	"github.com/Shanduur/spawner/spawner"
+	"github.com/Shanduur/spawner/tui"
 )
 
 func main() {
@@ -14,15 +16,51 @@ func main() {
 
 	spr, err := spawner.Unmarshal(".spawnfile.yml")
 	if err != nil {
-		log.Fatalf("unable to parse file: %s", err.Error())
+		l.Log().Fatalf("unable to parse file: %s", err.Error())
 	}
 	defer os.RemoveAll(spr.Prefix)
 
 	ctx := context.Background()
 
-	if err := spr.SpawnAll(&wg, ctx); err != nil {
-		log.Fatalf("unable to spawn component: %s", err.Error())
+	x, err := tui.Init(tui.TuiOpts{
+		Header:      "spawner",
+		RefreshRate: 30,
+	})
+	if err != nil {
+		l.Log().Fatal(err.Error())
 	}
 
-	wg.Wait()
+	if err := spr.Populate(); err != nil {
+		l.Log().Fatal(err.Error())
+	}
+
+	for i := 0; i < len(spr.Components); i++ {
+		if err := x.AddTab(tui.TabOpts{
+			Title:        spr.Components[i].String() + ".err",
+			HistoryLimit: 5,
+			Scanner:      bufio.NewScanner(spr.Components[i].Stderr),
+		}); err != nil {
+			l.Log().Fatal(err.Error())
+		}
+
+		if err := x.AddTab(tui.TabOpts{
+			Title:        spr.Components[i].String() + ".out",
+			HistoryLimit: 5,
+			Scanner:      bufio.NewScanner(spr.Components[i].Stdout),
+		}); err != nil {
+			l.Log().Fatal(err.Error())
+		}
+	}
+
+	if err := spr.SpawnAll(&wg, ctx); err != nil {
+		l.Log().Fatalf("unable to spawn component: %s", err.Error())
+	}
+
+	if err := x.Start(); err != nil {
+		l.Log().Error("error during execution: %s", err.Error())
+	}
+
+	if err := spr.KillAll(); err != nil {
+		l.Log().Error("error during execution: %s", err.Error())
+	}
 }

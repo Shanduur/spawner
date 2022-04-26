@@ -12,4 +12,8 @@ test:
 
 .PHONY: tui
 tui:
-	go run tui/example/main.go
+	go run examples/tui/main.go
+
+.PHONY: iocp
+iocp:
+	go run examples/iocp/main.go

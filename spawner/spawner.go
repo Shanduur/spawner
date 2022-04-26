@@ -2,10 +2,10 @@ package spawner
 
 import (
 	"context"
-	"log"
 	"os"
 	"sync"
 
+	l "github.com/Shanduur/spawner/logger"
 	"gopkg.in/yaml.v2"
 )
 
@@ -20,24 +20,12 @@ func (spr Spawner) Spawn(cmd Component, wg *sync.WaitGroup, ctx context.Context)
 		defer wg.Done()
 		defer cmd.Tee.Close()
 		if err := cmd.Exec(ctx); err != nil {
-			log.Printf("component failed: %s", err.Error())
+			l.Log().Printf("component failed: %s", err.Error())
 		}
 	}()
 }
 
 func (spr *Spawner) SpawnAll(wg *sync.WaitGroup, ctx context.Context) error {
-	for i := 0; i < len(spr.Components); i++ {
-		if err := spr.Components[i].AddPrefix(spr.Prefix); err != nil {
-			return err
-		}
-	}
-
-	for i := 0; i < len(spr.Components); i++ {
-		if err := spr.Components[i].Populate(); err != nil {
-			return err
-		}
-	}
-
 	for _, cmd := range spr.Components {
 		spr.Spawn(cmd, wg, ctx)
 	}
@@ -45,7 +33,21 @@ func (spr *Spawner) SpawnAll(wg *sync.WaitGroup, ctx context.Context) error {
 	return nil
 }
 
+func (spr *Spawner) KillAll() error {
+	for _, cmd := range spr.Components {
+		cmd.Kill()
+	}
+
+	return nil
+}
+
 func (spr *Spawner) Populate() error {
+	for i := 0; i < len(spr.Components); i++ {
+		if err := spr.Components[i].AddPrefix(spr.Prefix); err != nil {
+			return err
+		}
+	}
+
 	for i := 0; i < len(spr.Components); i++ {
 		if err := spr.Components[i].Populate(); err != nil {
 			return err
@@ -62,6 +64,8 @@ func Unmarshal(file string) (Spawner, error) {
 	if err = yaml.Unmarshal(b, &spr); err != nil {
 		return spr, err
 	}
+
+	os.RemoveAll(spr.Prefix)
 
 	return spr, nil
 }
