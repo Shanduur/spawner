@@ -268,7 +268,7 @@ func (t *Tee) Open(name string) error {
 	}
 
 	if t.Stderr {
-		f, err := os.Open(name + ".err")
+		f, err := os.OpenFile(name+".err", os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}

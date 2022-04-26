@@ -9,3 +9,7 @@ build:
 .PHONY: test
 test:
 	go test -cover -race ./...
+
+.PHONY: tui
+tui:
+	go run tui/example/main.go
