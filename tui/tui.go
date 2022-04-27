@@ -32,6 +32,10 @@ type Tui struct {
 	displayError bool
 }
 
+func Close() {
+	ui.Close()
+}
+
 func Init(opts TuiOpts) (*Tui, error) {
 	header := widgets.NewParagraph()
 	header.Text = opts.Header

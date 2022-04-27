@@ -29,6 +29,7 @@ func main() {
 	if err != nil {
 		l.Log().Fatal(err.Error())
 	}
+	defer tui.Close()
 
 	if err := spr.Populate(); err != nil {
 		l.Log().Fatal(err.Error())
