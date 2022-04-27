@@ -191,8 +191,10 @@ func (tui *Tui) Start() error {
 				tui.renderTab()
 				if frame >= int(tui.refreshRate) {
 					ui.Clear()
+					frame = 0
+				} else {
+					frame++
 				}
-				frame++
 			} else {
 				ui.Render(tui.Error)
 			}
