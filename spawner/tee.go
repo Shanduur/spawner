@@ -1,26 +1,19 @@
 package spawner
 
-import "os"
+import (
+	"os"
+
+	l "github.com/Shanduur/spawner/logger"
+)
 
 type Tee struct {
 	Stdout     bool `yaml:"stdout"`
 	Stderr     bool `yaml:"stderr"`
-	Combined   bool `yaml:"combined"`
 	StderrFile *os.File
 	StdoutFile *os.File
 }
 
 func (t *Tee) Open(name string) error {
-	if t.Combined {
-		f, err := os.OpenFile(name+".log", os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			return err
-		}
-		t.StdoutFile = f
-		t.StderrFile = f
-		return nil
-	}
-
 	if t.Stdout {
 		f, err := os.OpenFile(name+".log", os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
@@ -42,12 +35,13 @@ func (t *Tee) Open(name string) error {
 
 func (t *Tee) Close() {
 	if t.Stdout {
-		t.StdoutFile.Close()
+		if err := t.StdoutFile.Close(); err != nil {
+			l.Log().Errorf("error closing stdout file: %s", err)
+		}
 	}
 	if t.Stderr {
-		t.StderrFile.Close()
-	}
-	if t.Combined {
-		t.StdoutFile.Close()
+		if err := t.StderrFile.Close(); err != nil {
+			l.Log().Errorf("error closing stderr file: %s", err)
+		}
 	}
 }

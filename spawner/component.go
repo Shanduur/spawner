@@ -270,7 +270,7 @@ func (cmd *Component) Exec(ctx context.Context) error {
 
 	go func() {
 		var w io.Writer
-		if cmd.Tee.Combined || cmd.Tee.Stdout {
+		if cmd.Tee.Stdout {
 			w = io.MultiWriter(cmd.Tee.StdoutFile)
 			_, err := io.Copy(w, cmd.Stdout)
 			if err != nil {
@@ -281,7 +281,7 @@ func (cmd *Component) Exec(ctx context.Context) error {
 
 	go func() {
 		var w io.Writer
-		if cmd.Tee.Combined || cmd.Tee.Stderr {
+		if cmd.Tee.Stderr {
 			w = io.MultiWriter(cmd.Tee.StderrFile)
 			_, err := io.Copy(w, cmd.Stderr)
 			if err != nil {
