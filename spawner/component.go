@@ -81,7 +81,15 @@ func (cmd *Component) Kill() {
 	if len(cmd.KillCmd) > 0 {
 		kcmd := Component{
 			Entrypoint:  cmd.KillCmd,
+			prefix:      cmd.prefix,
+			WorkDir:     cmd.WorkDir,
+			Depends:     cmd.Depends,
+			SkipPrefix:  cmd.SkipPrefix,
 			PreventKill: true,
+			Tee: Tee{
+				Stdout: true,
+				Stderr: true,
+			},
 		}
 
 		if err := kcmd.Populate(); err != nil {
