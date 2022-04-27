@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	l "github.com/Shanduur/spawner/logger"
+	"github.com/sirupsen/logrus"
 )
 
 type Component struct {
@@ -32,6 +33,7 @@ type Component struct {
 
 	populated bool
 	prefix    string
+	root      bool
 
 	Stdout io.ReadCloser
 	Stderr io.ReadCloser
@@ -42,7 +44,7 @@ func (cmd Component) String() string {
 	cmdArray = append(cmdArray, cmd.Entrypoint...)
 	cmdArray = append(cmdArray, cmd.Cmd...)
 
-	str := strings.Join(cmdArray, "-")
+	str := strings.Join(cmdArray, " ")
 	if len(str) > 16 {
 		str = str[:16]
 	}
@@ -72,8 +74,6 @@ func (cmd *Component) AddPrefix(prefix string) error {
 }
 
 func (cmd *Component) Kill() {
-	defer cmd.Tee.Close()
-
 	for i := 0; i < len(cmd.Before); i++ {
 		cmd.Before[i].Kill()
 	}
@@ -99,9 +99,10 @@ func (cmd *Component) Kill() {
 		if err := kcmd.Exec(context.TODO()); err != nil {
 			l.Log().Errorf("failed to populate error command: %s", err.Error())
 		}
-	} else if cmd.ExecCmd.Process != nil && !cmd.PreventKill {
+	} else if cmd.ExecCmd.Process != nil && !cmd.PreventKill &&
+		cmd.ExecCmd.ProcessState != nil && !cmd.ExecCmd.ProcessState.Exited() {
 		if err := cmd.ExecCmd.Process.Kill(); err != nil {
-			l.Log().Warn(err)
+			l.Log().WithField(l.From, cmd.String()).Warn(err)
 		}
 	}
 
@@ -177,13 +178,6 @@ func (cmd *Component) Populate() error {
 		return err
 	}
 
-	if err = cmd.Tee.Open(path.Join(
-		cmd.LogDir,
-		strings.ReplaceAll(cmd.String(), " ", "_"),
-	)); err != nil {
-		return err
-	}
-
 	var componentArray []string
 	componentArray = append(componentArray, cmd.Entrypoint...)
 	componentArray = append(componentArray, cmd.Cmd...)
@@ -217,6 +211,13 @@ func (cmd *Component) Populate() error {
 	cmd.ExecCmd.Dir = cmd.WorkDir
 
 	cmd.populated = true
+
+	if err = cmd.Tee.Open(path.Join(
+		cmd.LogDir,
+		strings.ReplaceAll(cmd.String(), " ", "_"),
+	)); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -277,23 +278,33 @@ func (cmd *Component) Exec(ctx context.Context) error {
 	}
 
 	go func() {
+		defer cmd.Tee.StdoutFile.Close()
+
 		var w io.Writer
 		if cmd.Tee.Stdout {
 			w = io.MultiWriter(cmd.Tee.StdoutFile)
-			_, err := io.Copy(w, cmd.Stdout)
+			b, err := io.Copy(w, cmd.Stdout)
 			if err != nil {
-				l.Log().Printf("stdout error %s: %s", cmd.String(), err.Error())
+				l.Log().WithFields(logrus.Fields{
+					l.From:       cmd.String(),
+					"bytes_read": b,
+				}).Printf("stdout error: %s", err.Error())
 			}
 		}
 	}()
 
 	go func() {
+		defer cmd.Tee.StderrFile.Close()
+
 		var w io.Writer
 		if cmd.Tee.Stderr {
 			w = io.MultiWriter(cmd.Tee.StderrFile)
-			_, err := io.Copy(w, cmd.Stderr)
+			b, err := io.Copy(w, cmd.Stderr)
 			if err != nil {
-				l.Log().Printf("stderr error %s: %s", cmd.String(), err.Error())
+				l.Log().WithFields(logrus.Fields{
+					l.From:       cmd.String(),
+					"bytes_read": b,
+				}).Printf("stderr error: %s", err.Error())
 			}
 		}
 	}()

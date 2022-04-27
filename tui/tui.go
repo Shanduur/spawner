@@ -17,12 +17,13 @@ type TuiOpts struct {
 }
 
 type Tui struct {
-	Header    *widgets.Paragraph
-	ActiveTab int
-	Tabs      []*Tab
-	TabPane   *widgets.TabPane
-	Keymap    *widgets.Paragraph
-	Error     *widgets.Paragraph
+	Header      *widgets.Paragraph
+	ActiveTab   int
+	Tabs        []*Tab
+	TabPane     *widgets.TabPane
+	Keymap      *widgets.Paragraph
+	Error       *widgets.Paragraph
+	ExitMessage *widgets.Paragraph
 
 	eventPoller  <-chan ui.Event
 	ticker       <-chan time.Time
@@ -46,6 +47,12 @@ func Init(opts TuiOpts) (*Tui, error) {
 	header.TextStyle.Bg = ui.ColorBlack
 	header.TextStyle.Fg = ui.ColorWhite
 
+	exitpar := widgets.NewParagraph()
+	exitpar.Text = "Exiting, please wait!"
+	exitpar.SetRect(0, 0, 1, 1)
+	exitpar.Border = true
+	exitpar.TextStyle.Fg = ui.ColorRed
+
 	errpar := widgets.NewParagraph()
 	errpar.Text = "?"
 	errpar.SetRect(0, 0, 1, 1)
@@ -68,6 +75,7 @@ func Init(opts TuiOpts) (*Tui, error) {
 		TabPane:     tabpane,
 		Keymap:      keymap,
 		Error:       errpar,
+		ExitMessage: exitpar,
 		refreshRate: time.Duration(opts.RefreshRate),
 	}
 
@@ -109,6 +117,7 @@ func (tui *Tui) adjustSize() {
 			tui.Header.SetRect(0, 0, tui.width-1, 1)
 			tui.TabPane.SetRect(0, 1, tui.width-1, 4)
 			tui.Keymap.SetRect(0, tui.height-4, tui.width-1, tui.height-1)
+			tui.ExitMessage.SetRect(0, 0, w-1, h-1)
 
 			for i := 0; i < len(tui.Tabs); i++ {
 				tui.Tabs[i].Resize(tui.width, tui.height)
@@ -169,6 +178,9 @@ func (tui *Tui) Start() error {
 		case e := <-tui.eventPoller:
 			switch e.ID {
 			case "q", "<C-c>":
+				ui.Clear()
+				ui.Render(tui.ExitMessage)
+				l.Log().Info("exiting")
 				return nil
 			case "h":
 				tui.TabPane.FocusLeft()

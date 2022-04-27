@@ -3,9 +3,10 @@ package tui
 import (
 	"bufio"
 	"fmt"
-	"os"
 	"sync"
+	"time"
 
+	l "github.com/Shanduur/spawner/logger"
 	"github.com/gizak/termui/v3/widgets"
 )
 
@@ -46,22 +47,31 @@ func (tab *Tab) Resize(w, h int) {
 func (tab *Tab) Writer() {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("recovered writer", r)
+			l.Log().WithField(l.From, tab.Title).Errorf("recovered writer", r)
 		}
 	}()
 
-	tab.Content.Rows = append(tab.Content.Rows, "loaded")
+	tab.Content.Rows = append(tab.Content.Rows, "waiting...")
 
-	for tab.Scanner.Scan() {
-		tab.Mut.Lock()
-		tab.Content.Rows = append(tab.Content.Rows, tab.Scanner.Text())
-		tab.Mut.Unlock()
+	ticker := time.NewTicker(time.Second).C
+	start := time.Now().Second()
+	for {
+		for tab.Scanner.Scan() {
+			tab.Mut.Lock()
+			tab.Content.Rows = append(tab.Content.Rows, tab.Scanner.Text())
+			tab.Mut.Unlock()
 
-		if tab.AutoScroll {
-			tab.Content.SelectedRow = len(tab.Content.Rows) - 1
+			if tab.AutoScroll {
+				tab.Content.SelectedRow = len(tab.Content.Rows) - 1
+			}
 		}
-	}
-	if err := tab.Scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "reading standard input:", err)
+		if err := tab.Scanner.Err(); err != nil {
+			l.Log().WithField(l.From, tab.Title).Errorf("reading standard input: %s", err.Error())
+			time.Sleep(time.Second)
+			select {
+			case <-ticker:
+				tab.Content.Rows = append(tab.Content.Rows, fmt.Sprintf("waiting for %d...", time.Now().Second()-start))
+			}
+		}
 	}
 }

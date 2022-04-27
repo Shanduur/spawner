@@ -18,7 +18,6 @@ func main() {
 	if err != nil {
 		l.Log().Fatalf("unable to parse file: %s", err.Error())
 	}
-	defer os.RemoveAll(spr.Prefix)
 
 	ctx := context.Background()
 
@@ -34,6 +33,7 @@ func main() {
 	if err := spr.Populate(); err != nil {
 		l.Log().Fatal(err.Error())
 	}
+	defer os.RemoveAll(spr.Prefix)
 
 	for i := 0; i < len(spr.Components); i++ {
 		if err := x.AddTab(tui.TabOpts{

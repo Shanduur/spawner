@@ -16,6 +16,10 @@ var logFile *os.File
 
 var Buffer = bytes.NewBuffer([]byte{})
 
+const (
+	From = "from"
+)
+
 func init() {
 	Logger = logrus.New()
 
@@ -23,13 +27,13 @@ func init() {
 }
 
 func configLogger() {
-	// Log().SetFormatter(&logrus.JSONFormatter{})
+	Log().SetFormatter(&logrus.JSONFormatter{})
 
-	logFile, err := os.OpenFile("logrus.err", os.O_CREATE|os.O_WRONLY, 0644)
+	logFile, err := os.OpenFile("spawner.err", os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		Log().SetOutput(io.MultiWriter(os.Stderr, Buffer))
+		Log().SetOutput(io.MultiWriter(Buffer))
 	} else {
-		Log().SetOutput(io.MultiWriter(os.Stderr, logFile, Buffer))
+		Log().SetOutput(io.MultiWriter(logFile, Buffer))
 	}
 
 	switch os.Getenv("LOG_LEVEL") {

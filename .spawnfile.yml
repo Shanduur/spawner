@@ -5,23 +5,37 @@ components:
     cmd: [ start ]
     workdir: reveal.js.tmp
     tee:
-      combined: true
+      stdout: true
+      stderr: true
     before:
       - entrypoint: [ npm, i ]
         workdir: reveal.js.tmp
         tee:
-          combined: true
+          stdout: true
+          stderr: true
         before:
           - entrypoint: [ ln ]
             cmd: [ -s, -f, "{{.ContextDir}}/index.html", reveal.js.tmp/index.html ]
             tee:
-              combined: true
+              stdout: true
+              stderr: true
             before:
               - entrypoint: [ git ]
                 cmd: [ clone, https://github.com/hakimel/reveal.js.git, reveal.js.tmp ]
+                tee:
+                  stdout: true
+                  stderr: true
   - entrypoint: [ ttyd, -c, user:passw0rd, -p, 2375, -m, 1 ]
     cmd: [ zsh ]
     workdir: "{{.ContextDir}}"
     skip-prefix: true
     tee:
-      combined: true
+      stdout: true
+      stderr: true
+  - entrypoint: [ docker, run ]
+    kill-cmd: [ bash, -c, "docker container stop $(docker container ls -aq --filter ancestor=kasmweb/chromium:1.10.0-rolling)" ]
+    cmd: [ --rm, --shm-size=512m, -p, 6901:6901, -e, VNC_PW=password, -e, LAUNCH_URL=100.113.195.77, kasmweb/chromium:1.10.0-rolling ]
+    tee:
+      stdout: true
+      stderr: true
+
