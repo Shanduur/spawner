@@ -10,10 +10,6 @@ build:
 test:
 	go test -cover -race ./...
 
-.PHONY: tui
-tui:
-	go run examples/tui/main.go
-
-.PHONY: iocp
-iocp:
-	go run examples/iocp/main.go
+.PHONY: install
+install: build
+	install ./build/spawner ${HOME}/.local/bin/

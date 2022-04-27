@@ -26,6 +26,7 @@ type Component struct {
 	SkipPrefix bool        `yaml:"skip-prefix"`
 	ExecCmd    *exec.Cmd
 	ContextDir string
+	LogDir     string
 
 	populated bool
 	prefix    string
@@ -55,9 +56,9 @@ func (cmd *Component) AddPrefix(prefix string) error {
 		}
 	}
 
+	cmd.prefix = prefix
 	if !cmd.SkipPrefix {
 		cmd.WorkDir = path.Join(prefix, cmd.WorkDir)
-		cmd.prefix = prefix
 	}
 
 	return nil
@@ -85,6 +86,8 @@ func (cmd *Component) Populate() error {
 	if err != nil {
 		return err
 	}
+
+	cmd.LogDir = path.Join(cmd.ContextDir, fmt.Sprintf("%s-logs", cmd.prefix))
 
 	for i := 0; i < len(cmd.Before); i++ {
 		if err := cmd.Before[i].Populate(); err != nil {
@@ -128,12 +131,24 @@ func (cmd *Component) Populate() error {
 		cmd.ContextDir = cd
 	}
 
+	ld, err := filepath.Abs(cmd.LogDir)
+	if err != nil {
+		return err
+	}
+	if len(cd) > len(cmd.ContextDir) {
+		cmd.ContextDir = ld
+	}
+
 	if err = os.MkdirAll(cmd.WorkDir, 0777); err != nil {
 		return err
 	}
 
+	if err = os.MkdirAll(cmd.LogDir, 0777); err != nil {
+		return err
+	}
+
 	if err = cmd.Tee.Open(path.Join(
-		cmd.prefix,
+		cmd.LogDir,
 		strings.ReplaceAll(cmd.String(), " ", "_"),
 	)); err != nil {
 		return err
@@ -271,54 +286,4 @@ func (cmd *Component) Exec(ctx context.Context) error {
 	}
 
 	return err
-}
-
-type Tee struct {
-	Stdout     bool `yaml:"stdout"`
-	Stderr     bool `yaml:"stderr"`
-	Combined   bool `yaml:"combined"`
-	StderrFile *os.File
-	StdoutFile *os.File
-}
-
-func (t *Tee) Open(name string) error {
-	if t.Combined {
-		f, err := os.OpenFile(name+".log", os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			return err
-		}
-		t.StdoutFile = f
-		t.StderrFile = f
-		return nil
-	}
-
-	if t.Stdout {
-		f, err := os.OpenFile(name+".log", os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			return err
-		}
-		t.StdoutFile = f
-	}
-
-	if t.Stderr {
-		f, err := os.OpenFile(name+".err", os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			return err
-		}
-		t.StderrFile = f
-	}
-
-	return nil
-}
-
-func (t *Tee) Close() {
-	if t.Stdout {
-		t.StdoutFile.Close()
-	}
-	if t.Stderr {
-		t.StderrFile.Close()
-	}
-	if t.Combined {
-		t.StdoutFile.Close()
-	}
 }
