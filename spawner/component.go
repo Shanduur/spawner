@@ -16,17 +16,18 @@ import (
 )
 
 type Component struct {
-	Entrypoint []string    `yaml:"entrypoint"`
-	Cmd        []string    `yaml:"cmd"`
-	Depends    string      `yaml:"depends"`
-	WorkDir    string      `yaml:"workdir"`
-	After      []Component `yaml:"after"`
-	Before     []Component `yaml:"before"`
-	Tee        Tee         `yaml:"tee"`
-	SkipPrefix bool        `yaml:"skip-prefix"`
-	ExecCmd    *exec.Cmd
-	ContextDir string
-	LogDir     string
+	Entrypoint  []string    `yaml:"entrypoint"`
+	Cmd         []string    `yaml:"cmd"`
+	Depends     string      `yaml:"depends"`
+	WorkDir     string      `yaml:"workdir"`
+	After       []Component `yaml:"after"`
+	Before      []Component `yaml:"before"`
+	Tee         Tee         `yaml:"tee"`
+	SkipPrefix  bool        `yaml:"skip-prefix"`
+	PreventKill bool        `yaml:"prevent-kill"`
+	ExecCmd     *exec.Cmd
+	ContextDir  string
+	LogDir      string
 
 	populated bool
 	prefix    string
@@ -69,7 +70,7 @@ func (cmd *Component) Kill() {
 		cmd.Before[i].Kill()
 	}
 
-	if cmd.ExecCmd.Process != nil {
+	if cmd.ExecCmd.Process != nil && !cmd.PreventKill {
 		if err := cmd.ExecCmd.Process.Kill(); err != nil {
 			l.Log().Warn(err)
 		}
