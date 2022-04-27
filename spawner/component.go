@@ -23,7 +23,9 @@ type Component struct {
 	After      []Component `yaml:"after"`
 	Before     []Component `yaml:"before"`
 	Tee        Tee         `yaml:"tee"`
+	SkipPrefix bool        `yaml:"skip-prefix"`
 	ExecCmd    *exec.Cmd
+	ContextDir string
 
 	populated bool
 	prefix    string
@@ -53,8 +55,10 @@ func (cmd *Component) AddPrefix(prefix string) error {
 		}
 	}
 
-	cmd.WorkDir = path.Join(prefix, cmd.WorkDir)
-	cmd.prefix = prefix
+	if !cmd.SkipPrefix {
+		cmd.WorkDir = path.Join(prefix, cmd.WorkDir)
+		cmd.prefix = prefix
+	}
 
 	return nil
 }
@@ -76,6 +80,12 @@ func (cmd *Component) Kill() {
 }
 
 func (cmd *Component) Populate() error {
+	var err error
+	cmd.ContextDir, err = os.Getwd()
+	if err != nil {
+		return err
+	}
+
 	for i := 0; i < len(cmd.Before); i++ {
 		if err := cmd.Before[i].Populate(); err != nil {
 			return err
@@ -88,10 +98,18 @@ func (cmd *Component) Populate() error {
 		}
 	}
 
-	cmd.populated = true
-
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
+
+	var buf bytes.Buffer
+	tpl, err := template.New(cmd.String() + "workidr").Parse(cmd.WorkDir)
+	if err != nil {
+		return err
+	}
+
+	if err := tpl.Execute(&buf, cmd); err == nil {
+		cmd.WorkDir = buf.String()
+	}
 
 	wd, err := filepath.Abs(cmd.WorkDir)
 	if err != nil {
@@ -101,6 +119,14 @@ func (cmd *Component) Populate() error {
 		cmd.WorkDir = wd
 	}
 	// l.Log().Info(cmd.WorkDir)
+
+	cd, err := filepath.Abs(cmd.ContextDir)
+	if err != nil {
+		return err
+	}
+	if len(cd) > len(cmd.ContextDir) {
+		cmd.ContextDir = cd
+	}
 
 	if err = os.MkdirAll(cmd.WorkDir, 0777); err != nil {
 		return err
@@ -144,6 +170,8 @@ func (cmd *Component) Populate() error {
 	}
 
 	cmd.ExecCmd.Dir = cmd.WorkDir
+
+	cmd.populated = true
 
 	return nil
 }
