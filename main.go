@@ -38,7 +38,7 @@ func main() {
 	for i := 0; i < len(spr.Components); i++ {
 		if err := x.AddTab(tui.TabOpts{
 			Title:        spr.Components[i].String() + ".err",
-			HistoryLimit: 5,
+			HistoryLimit: 1000,
 			Scanner:      bufio.NewScanner(spr.Components[i].Stderr),
 		}); err != nil {
 			l.Log().Fatal(err.Error())
@@ -46,7 +46,7 @@ func main() {
 
 		if err := x.AddTab(tui.TabOpts{
 			Title:        spr.Components[i].String() + ".out",
-			HistoryLimit: 5,
+			HistoryLimit: 1000,
 			Scanner:      bufio.NewScanner(spr.Components[i].Stdout),
 		}); err != nil {
 			l.Log().Fatal(err.Error())
