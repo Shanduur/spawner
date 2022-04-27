@@ -36,6 +36,8 @@ func Close() {
 	ui.Close()
 }
 
+var frame = 0
+
 func Init(opts TuiOpts) (*Tui, error) {
 	header := widgets.NewParagraph()
 	header.Text = opts.Header
@@ -185,9 +187,12 @@ func (tui *Tui) Start() error {
 			}
 		case <-tui.ticker:
 			if !tui.displayError {
-				ui.Render(tui.Header, tui.TabPane)
+				ui.Render(tui.Header, tui.TabPane, tui.Keymap)
 				tui.renderTab()
-				ui.Render(tui.Keymap)
+				if frame >= int(tui.refreshRate) {
+					ui.Clear()
+				}
+				frame++
 			} else {
 				ui.Render(tui.Error)
 			}

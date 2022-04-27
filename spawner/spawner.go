@@ -18,7 +18,6 @@ func (spr Spawner) Spawn(cmd Component, wg *sync.WaitGroup, ctx context.Context)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer cmd.Tee.Close()
 		if err := cmd.Exec(ctx); err != nil {
 			l.Log().Printf("component failed: %s", err.Error())
 		}

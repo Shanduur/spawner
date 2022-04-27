@@ -18,6 +18,7 @@ import (
 type Component struct {
 	Entrypoint  []string    `yaml:"entrypoint"`
 	Cmd         []string    `yaml:"cmd"`
+	KillCmd     []string    `yaml:"kill-cmd"`
 	Depends     string      `yaml:"depends"`
 	WorkDir     string      `yaml:"workdir"`
 	After       []Component `yaml:"after"`
@@ -41,7 +42,12 @@ func (cmd Component) String() string {
 	cmdArray = append(cmdArray, cmd.Entrypoint...)
 	cmdArray = append(cmdArray, cmd.Cmd...)
 
-	return cmdArray[0]
+	str := strings.Join(cmdArray, "-")
+	if len(str) > 16 {
+		str = str[:16]
+	}
+
+	return str
 }
 
 func (cmd *Component) AddPrefix(prefix string) error {
@@ -66,11 +72,26 @@ func (cmd *Component) AddPrefix(prefix string) error {
 }
 
 func (cmd *Component) Kill() {
+	defer cmd.Tee.Close()
+
 	for i := 0; i < len(cmd.Before); i++ {
 		cmd.Before[i].Kill()
 	}
 
-	if cmd.ExecCmd.Process != nil && !cmd.PreventKill {
+	if len(cmd.KillCmd) > 0 {
+		kcmd := Component{
+			Entrypoint:  cmd.KillCmd,
+			PreventKill: true,
+		}
+
+		if err := kcmd.Populate(); err != nil {
+			l.Log().Errorf("failed to populate error command: %s", err.Error())
+		}
+
+		if err := kcmd.Exec(context.TODO()); err != nil {
+			l.Log().Errorf("failed to populate error command: %s", err.Error())
+		}
+	} else if cmd.ExecCmd.Process != nil && !cmd.PreventKill {
 		if err := cmd.ExecCmd.Process.Kill(); err != nil {
 			l.Log().Warn(err)
 		}
